@@ -27,7 +27,7 @@ const roomMessages = {
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
 
-  // 1. Simple Login (No JWT, just saves username)
+  // 1. Simple Login (No JWT)
   socket.on("verify_login", ({ username }, callback) => {
     if (!username || !username.trim()) {
       return callback({ success: false, error: "Username is required" });
@@ -37,7 +37,6 @@ io.on("connection", (socket) => {
     socket.username = cleanUsername;
     activeUsers.set(socket.id, cleanUsername);
 
-    // Send back success without needing a token
     callback({ success: true, token: "no-token-needed", username: cleanUsername });
   });
 
@@ -71,13 +70,7 @@ io.on("connection", (socket) => {
     io.to(room).emit("message", newMessage);
   });
 
-  socket.on("disconnect", () => {
-    activeUsers.delete(socket.id);
-    console.log(`User disconnected: ${socket.id}`);
-  });
-});
-
-// 4. Handle Edit Message
+  // 4. Handle Edit Message
   socket.on("edit_message", ({ room, id, newText }) => {
     if (!roomMessages[room]) return;
     const msg = roomMessages[room].find((m) => m.id === id);
@@ -97,6 +90,12 @@ io.on("connection", (socket) => {
       io.to(room).emit("load_history", roomMessages[room]);
     }
   });
+
+  socket.on("disconnect", () => {
+    activeUsers.delete(socket.id);
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
 
 const PORT = process.env.PORT || 5050;
 server.listen(PORT, () => {
