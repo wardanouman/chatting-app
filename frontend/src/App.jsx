@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 
-// Change this to "http://localhost:5000" if testing locally on your computer
+
 const socket = io("https://chatting-app-production-c1fa.up.railway.app");
 
 const CHAT_ROOMS = [
@@ -40,7 +40,7 @@ export default function App() {
     const savedToken = sessionStorage.getItem('chat_token');
 
     const joinCurrentRoom = () => {
-      socket.emit("join", { roomId: activeRoom.id, token: savedToken });
+      socket.emit("join", { roomId: activeRoom.id, username: username});
     };
 
     if (socket.connected) {
@@ -121,7 +121,7 @@ export default function App() {
     setEditingId(null);
 
     const savedToken = sessionStorage.getItem('chat_token');
-    socket.emit("join", { roomId: room.id, token: savedToken });
+    socket.emit("join", { roomId: room.id, username: username });
   };
 
   const handleInputChange = (e) => {
@@ -132,23 +132,17 @@ export default function App() {
   };
 
   const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!message.trim()) return;
+  e.preventDefault();
+  if (!message.trim()) return;
 
-    if (editingId) {
-      socket.emit("edit_message", {
-        room: activeRoom.id,
-        id: editingId,
-        newText: message.trim()
-      });
-      setEditingId(null);
-      setMessage('');
-    } else {
-      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      socket.emit("send", { room: activeRoom.id, message: message.trim(), time });
-      setMessage('');
-    }
-  };
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // Send to socket server
+  socket.emit("send", { room: activeRoom.id, message: message.trim(), time });
+
+  // Clear input
+  setMessage('');
+};
 
   const handleStartEdit = (e, msg) => {
     e.stopPropagation();
