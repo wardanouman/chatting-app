@@ -11,7 +11,7 @@ const server = createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: "https://chatting-app-production-c1fa.up.railway.app",
     methods: ["GET", "POST"]
   }
 });
@@ -149,5 +149,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 5050;
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 
-const socket = io("http://localhost:5050");
+const socket = io("https://chatting-app-production-c1fa.up.railway.app");
 
 const CHAT_ROOMS = [
   { id: 'general', name: 'General Chat Room', description: 'Real-time room messaging' },
