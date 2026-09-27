@@ -1,153 +1,160 @@
-import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import cors from 'cors';
-import { createClient } from 'redis';
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import cors from "cors";
+import jwt from "jsonwebtoken";
 
 const app = express();
 app.use(cors());
 
-const server = createServer(app);
-
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin:"*",
-    methods: ["GET", "POST"]
-  }
+    origin: "*", // Adjust for production if needed
+    methods: ["GET", "POST"],
+  },
 });
 
-const redisClient = createClient({
-  username: 'default',
-  password: 'q3N1oZXxvOW2WswKwhY1A1DI0ZmMl3eZ',
-  socket: {
-    host: 'transport-clever-compelling-15702.db.redis.io',
-    port: 13514
-  }
-});
+// --- CONFIGURATION ---
+const APP_PASSWORD = "your_shared_password_here"; // Set your single global password
+const JWT_SECRET = "your_super_secret_jwt_key_change_this"; // Secret key for signing tokens
 
-redisClient.on('error', (err) => console.error('Redis Client Error:', err));
+// In-memory data store
+const activeUsers = new Map(); // Stores { username: socket.id }
+const roomMessages = {
+  general: [],
+  tech: [],
+  random: [],
+};
 
-async function connectRedis() {
-  try {
-    await redisClient.connect();
-    console.log('Connected to Remote Redis successfully!');
-  } catch (err) {
-    console.error('Failed to connect to Redis:', err);
-  }
-}
-connectRedis();
-
-// Helper function to guarantee every message in an array has a unique ID
-function ensureMessageIds(messages) {
-  if (!Array.isArray(messages)) return [];
-  return messages.map((msg, index) => ({
-    ...msg,
-    id: msg.id || `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 4)}`
-  }));
-}
-
-io.on('connection', (socket) => {
+io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
 
-  socket.on("join", async ({ roomId, username }) => {
-    socket.join(roomId);
-    console.log(`${username} joined room: ${roomId}`);
+  // 1. VERIFY LOGIN & ISSUE JWT TOKEN
+  socket.on("verify_login", ({ username, password }, callback) => {
+    const trimmedUser = username ? username.trim() : "";
 
+    if (!trimmedUser || !password) {
+      return callback({ success: false, error: "Username and password are required" });
+    }
+
+    // Check shared app password
+    if (password !== APP_PASSWORD) {
+      return callback({ success: false, error: "Invalid password" });
+    }
+
+    // Check if username is already taken by an active session
+    if (activeUsers.has(trimmedUser)) {
+      return callback({ success: false, error: "Username is already in use" });
+    }
+
+    // Generate JWT token valid for 24 hours
+    const token = jwt.sign({ username: trimmedUser }, JWT_SECRET, { expiresIn: "24h" });
+
+    // Track user session
+    activeUsers.set(trimmedUser, socket.id);
+    socket.username = trimmedUser;
+
+    callback({ success: true, token, username: trimmedUser });
+  });
+
+  // 2. JOIN ROOM (REQUIRES VALID JWT TOKEN)
+  socket.on("join", ({ roomId, token }) => {
     try {
-      const key = `chat:${roomId}`;
-      const historyJson = await redisClient.get(key);
-      let history = historyJson ? JSON.parse(historyJson) : [];
+      if (!token) throw new Error("No token provided");
       
-      // Auto-assign IDs to older legacy messages
-      history = ensureMessageIds(history);
-      await redisClient.set(key, JSON.stringify(history));
+      // Verify JWT token
+      const decoded = jwt.verify(token, JWT_SECRET);
+      socket.username = decoded.username;
 
+      // Re-register active user on reconnect if missing
+      if (!activeUsers.has(socket.username)) {
+        activeUsers.set(socket.username, socket.id);
+      }
+
+      socket.join(roomId);
+
+      // Send existing message history for the room
+      const history = roomMessages[roomId] || [];
       socket.emit("load_history", history);
+
     } catch (err) {
-      console.error("Error fetching room history from Redis:", err);
+      socket.emit("auth_error", "Session expired or invalid token. Please log in again.");
     }
   });
 
-  socket.on("typing", ({ room, user }) => {
-    socket.to(room).emit("user_typing", { room, user });
+  // 3. SEND MESSAGE
+  socket.on("send", ({ room, message, time }) => {
+    if (!socket.username || !message.trim()) return;
+
+    const newMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      room,
+      message,
+      sender: socket.username,
+      time,
+      isEdited: false,
+    };
+
+    if (!roomMessages[room]) roomMessages[room] = [];
+    roomMessages[room].push(newMessage);
+
+    // Keep history manageable (last 100 messages)
+    if (roomMessages[room].length > 100) {
+      roomMessages[room].shift();
+    }
+
+    io.to(room).emit("message", newMessage);
   });
 
-  socket.on("send", async ({ room, message, sender, time }) => {
-    try {
-      const key = `chat:${room}`;
-      const msgData = { 
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`, 
-        sender, 
-        message, 
-        time, 
-        room 
-      };
+  // 4. TYPING INDICATOR
+  socket.on("typing", ({ room }) => {
+    if (!socket.username) return;
+    socket.to(room).emit("user_typing", { room, user: socket.username });
+  });
 
-      const historyJson = await redisClient.get(key);
-      let history = historyJson ? JSON.parse(historyJson) : [];
-      
-      history.push(msgData);
-      await redisClient.set(key, JSON.stringify(history));
+  // 5. EDIT MESSAGE
+  socket.on("edit_message", ({ room, id, newText }) => {
+    if (!socket.username || !roomMessages[room]) return;
 
-      // Broadcast to EVERYONE in the room
-      io.to(room).emit("message", msgData);
-    } catch (err) {
-      console.error("Error saving message:", err);
+    const msg = roomMessages[room].find((m) => m.id === id);
+    if (msg && msg.sender === socket.username) {
+      msg.message = newText;
+      msg.isEdited = true;
+
+      // Broadcast re-loaded history to sync edits across clients
+      io.to(room).emit("load_history", roomMessages[room]);
     }
   });
 
-  socket.on("edit_message", async ({ room, id, newText }) => {
-    try {
-      const key = `chat:${room}`;
-      const historyJson = await redisClient.get(key);
-      
-      if (historyJson) {
-        let history = JSON.parse(historyJson);
-        
-        history = history.map((msg) => {
-          if (String(msg.id) === String(id)) {
-            return { ...msg, message: newText, isEdited: true };
-          }
-          return msg;
-        });
+  // 6. DELETE MESSAGE
+  socket.on("delete_message", ({ room, id }) => {
+    if (!socket.username || !roomMessages[room]) return;
 
-        await redisClient.set(key, JSON.stringify(history));
-        io.to(room).emit("load_history", history);
-      }
-    } catch (err) {
-      console.error("Error editing message:", err);
+    const index = roomMessages[room].findIndex((m) => m.id === id);
+    if (index !== -1 && roomMessages[room][index].sender === socket.username) {
+      roomMessages[room].splice(index, 1);
+
+      // Broadcast updated history to sync deletions
+      io.to(room).emit("load_history", roomMessages[room]);
     }
   });
 
-  socket.on("delete_message", async ({ room, id }) => {
-    try {
-      const key = `chat:${room}`;
-      const historyJson = await redisClient.get(key);
-      
-      if (historyJson) {
-        let history = JSON.parse(historyJson);
-        
-        history = history.filter((msg) => String(msg.id) !== String(id));
-
-        await redisClient.set(key, JSON.stringify(history));
-        io.to(room).emit("load_history", history);
-      }
-    } catch (err) {
-      console.error("Error deleting message:", err);
-    }
-  });
-
+  // 7. LEAVE ROOM
   socket.on("leave", (roomId) => {
     socket.leave(roomId);
-    console.log(`User left room: ${roomId}`);
   });
 
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
+  // 8. DISCONNECT CLEANUP
+  socket.on("disconnect", () => {
+    if (socket.username) {
+      activeUsers.delete(socket.username);
+      console.log(`User disconnected: ${socket.username}`);
+    }
   });
 });
 
-const PORT = process.env.PORT || 5050;
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

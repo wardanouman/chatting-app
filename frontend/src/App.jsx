@@ -12,7 +12,9 @@ const CHAT_ROOMS = [
 export default function App() {
   const [username, setUsername] = useState(() => sessionStorage.getItem('chat_username') || '');
   const [password, setPassword] = useState('');
-  const [isLoggedIn, setIsLoggedIn] = useState(() => sessionStorage.getItem('chat_isLoggedIn') === 'true');
+  const [token, setToken] = useState(() => sessionStorage.getItem('chat_token') || '');
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(sessionStorage.getItem('chat_token')));
+  const [loginError, setLoginError] = useState('');
   
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
@@ -34,10 +36,10 @@ export default function App() {
   }, [messages, typingUser]);
 
   useEffect(() => {
-    if (!isLoggedIn || !username) return;
+    if (!isLoggedIn || !token) return;
 
     const joinCurrentRoom = () => {
-      socket.emit("join", { roomId: activeRoom.id, username });
+      socket.emit("join", { roomId: activeRoom.id, token });
     };
 
     if (socket.connected) {
@@ -62,33 +64,52 @@ export default function App() {
       }
     });
 
+    socket.on("auth_error", (errMsg) => {
+      alert(errMsg);
+      handleLogout();
+    });
+
     return () => {
       socket.off("connect", joinCurrentRoom);
       socket.off("load_history");
       socket.off("message");
       socket.off("user_typing");
+      socket.off("auth_error");
     };
-  }, [isLoggedIn, activeRoom.id, username]);
+  }, [isLoggedIn, activeRoom.id, token, username]);
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) return;
 
-    sessionStorage.setItem('chat_username', username.trim());
-    sessionStorage.setItem('chat_isLoggedIn', 'true');
+    setLoginError('');
 
-    setIsLoggedIn(true);
+    socket.emit("verify_login", { username: username.trim(), password }, (response) => {
+      if (response.success) {
+        sessionStorage.setItem('chat_username', response.username);
+        sessionStorage.setItem('chat_token', response.token);
+
+        setUsername(response.username);
+        setToken(response.token);
+        setIsLoggedIn(true);
+        setPassword('');
+      } else {
+        setLoginError(response.error || "Authentication failed");
+      }
+    });
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem('chat_username');
-    sessionStorage.removeItem('chat_isLoggedIn');
+    sessionStorage.removeItem('chat_token');
 
     socket.emit("leave", activeRoom.id);
     setIsLoggedIn(false);
     setUsername('');
     setPassword('');
+    setToken('');
     setMessages([]);
+    setLoginError('');
   };
 
   const handleRoomSwitch = (room) => {
@@ -98,13 +119,13 @@ export default function App() {
     setTypingUser('');
     setActiveMenuId(null);
     setEditingId(null);
-    socket.emit("join", { roomId: room.id, username });
+    socket.emit("join", { roomId: room.id, token });
   };
 
   const handleInputChange = (e) => {
     setMessage(e.target.value);
     if (!editingId) {
-      socket.emit("typing", { room: activeRoom.id, user: username });
+      socket.emit("typing", { room: activeRoom.id });
     }
   };
 
@@ -124,7 +145,7 @@ export default function App() {
     } else {
       // Send New Message
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      socket.emit("send", { room: activeRoom.id, message: message.trim(), sender: username, time });
+      socket.emit("send", { room: activeRoom.id, message: message.trim(), time });
       setMessage('');
     }
   };
@@ -159,10 +180,16 @@ export default function App() {
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-gray-100">Welcome to WhatsApp</h2>
-            <p className="text-xs text-gray-400 mt-1">Enter your account credentials to log in</p>
+            <p className="text-xs text-gray-400 mt-1">Enter your credentials to log in</p>
           </div>
 
           <div className="space-y-4">
+            {loginError && (
+              <div className="p-2.5 rounded bg-red-500/10 border border-red-500/50 text-red-400 text-xs text-center font-medium">
+                {loginError}
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Username</label>
               <input
