@@ -11,7 +11,7 @@ const server = createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "https://chatting-app-production-c1fa.up.railway.app",
+    origin:"*",
     methods: ["GET", "POST"]
   }
 });
