@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 
+// Change this to "http://localhost:5000" if testing locally on your computer
 const socket = io("https://chatting-app-production-c1fa.up.railway.app");
 
 const CHAT_ROOMS = [
@@ -36,11 +37,10 @@ export default function App() {
   useEffect(() => {
     if (!isLoggedIn) return;
 
+    const savedToken = sessionStorage.getItem('chat_token');
+
     const joinCurrentRoom = () => {
-      const savedToken = sessionStorage.getItem('chat_token');
-      if (savedToken) {
-        socket.emit("join", { roomId: activeRoom.id, token: savedToken });
-      }
+      socket.emit("join", { roomId: activeRoom.id, token: savedToken });
     };
 
     if (socket.connected) {
@@ -92,6 +92,9 @@ export default function App() {
 
         setUsername(response.username);
         setIsLoggedIn(true);
+
+        // Emit join immediately upon success
+        socket.emit("join", { roomId: activeRoom.id, token: response.token });
       } else {
         setLoginError(response.error || "Authentication failed");
       }
