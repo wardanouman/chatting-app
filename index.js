@@ -77,6 +77,27 @@ io.on("connection", (socket) => {
   });
 });
 
+// 4. Handle Edit Message
+  socket.on("edit_message", ({ room, id, newText }) => {
+    if (!roomMessages[room]) return;
+    const msg = roomMessages[room].find((m) => m.id === id);
+    if (msg && msg.sender === socket.username) {
+      msg.message = newText.trim();
+      msg.isEdited = true;
+      io.to(room).emit("load_history", roomMessages[room]);
+    }
+  });
+
+  // 5. Handle Delete Message
+  socket.on("delete_message", ({ room, id }) => {
+    if (!roomMessages[room]) return;
+    const index = roomMessages[room].findIndex((m) => m.id === id);
+    if (index !== -1 && roomMessages[room][index].sender === socket.username) {
+      roomMessages[room].splice(index, 1);
+      io.to(room).emit("load_history", roomMessages[room]);
+    }
+  });
+
 const PORT = process.env.PORT || 5050;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
