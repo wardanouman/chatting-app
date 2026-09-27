@@ -1,37 +1,26 @@
 @import "tailwindcss";
-
-/* Responsive layout adjustments for screens under 768px */
-@media (max-width: 768px) {
-  /* Prevent full-page horizontal scrolling */
-  body, html, #root {
-    overflow-x: hidden;
-    width: 100%;
+/* Stack sidebar above chat on small screens */
+@media screen and (max-width: 768px) {
+  /* Allow the chat wrapper to flow vertically */
+  div[style*="display: flex"], 
+  .app-layout, 
+  .chat-wrapper {
+    flex-direction: column !important;
   }
 
-  /* Main container flex wrapper */
-  .chat-container, .app-container, div[style*="display: flex"] {
-    flex-direction: column;
+  /* Make sidebar auto-fit height on mobile so it doesn't push chat off screen */
+  .sidebar, 
+  div[class*="sidebar"] {
     width: 100% !important;
-    height: 100vh;
+    max-height: 200px !important;
+    overflow-y: auto !important;
   }
 
-  /* Sidebar adjustment */
-  .sidebar {
+  /* Expand chat area to take full mobile width */
+  .chat-area, 
+  .main-chat, 
+  div[class*="chat"] {
     width: 100% !important;
     min-width: 100% !important;
-    max-height: 180px; /* Limits sidebar height so chat area gets priority */
-    overflow-y: auto;
-  }
-
-  /* Active chat panel adjustment */
-  .chat-main, .chat-area {
-    width: 100% !important;
-    flex: 1;
-  }
-
-  /* Chat input bar bottom alignment */
-  .chat-input-container {
-    width: 100% !important;
-    box-sizing: border-box;
   }
 }

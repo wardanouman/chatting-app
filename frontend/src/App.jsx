@@ -150,8 +150,8 @@ export default function App() {
 
   if (!isLoggedIn) {
     return (
-      <div className="bg-whatsapp-dark h-screen flex items-center justify-center font-sans text-gray-200 select-none">
-        <form onSubmit={handleLogin} className="w-full max-w-md p-8 bg-whatsapp-panel rounded-2xl shadow-2xl border border-gray-700/50">
+      <div className="bg-whatsapp-dark h-screen flex items-center justify-center font-sans text-gray-200 select-none p-4">
+        <form onSubmit={handleLogin} className="w-full max-w-md p-6 sm:p-8 bg-whatsapp-panel rounded-2xl shadow-2xl border border-gray-700/50">
           <div className="flex flex-col items-center mb-6">
             <div className="w-16 h-16 bg-whatsapp-green rounded-full flex items-center justify-center mb-3 shadow-lg">
               <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -196,12 +196,12 @@ export default function App() {
   }
 
   return (
-    <div className="bg-whatsapp-dark h-screen flex items-center justify-center font-sans text-gray-200 select-none">
-      <div className="w-full max-w-5xl h-[90vh] bg-whatsapp-panel rounded-xl shadow-2xl overflow-hidden flex border border-gray-700/50">
+    <div className="bg-whatsapp-dark min-h-screen flex items-center justify-center font-sans text-gray-200 select-none p-0 md:p-4">
+      <div className="w-full max-w-5xl h-screen md:h-[90vh] bg-whatsapp-panel md:rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row border-0 md:border md:border-gray-700/50">
         
         {/* Left Sidebar */}
-        <div className="w-1/3 bg-whatsapp-dark border-r border-whatsapp-panel flex flex-col">
-          <div className="h-16 bg-whatsapp-panel px-4 flex items-center justify-between border-b border-whatsapp-panel">
+        <div className="w-full md:w-1/3 h-1/3 md:h-full bg-whatsapp-dark border-b md:border-b-0 md:border-r border-whatsapp-panel flex flex-col">
+          <div className="h-16 bg-whatsapp-panel px-4 flex items-center justify-between border-b border-whatsapp-panel shrink-0">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-[#6b7c85] text-white flex items-center justify-center font-bold text-lg">
                 {username.charAt(0).toUpperCase()}
@@ -228,7 +228,7 @@ export default function App() {
                     isActive ? 'bg-whatsapp-input' : 'hover:bg-whatsapp-panel/50'
                   }`}
                 >
-                  <div className="w-11 h-11 rounded-full bg-whatsapp-green flex items-center justify-center text-white font-bold text-lg">
+                  <div className="w-11 h-11 rounded-full bg-whatsapp-green flex items-center justify-center text-white font-bold text-lg shrink-0">
                     #
                   </div>
                   <div className="flex-1 min-w-0">
@@ -242,9 +242,9 @@ export default function App() {
         </div>
 
         {/* Main Chat Window */}
-        <div className="w-2/3 flex flex-col bg-whatsapp-bg relative" onClick={() => setActiveMenuId(null)}>
-          <div className="h-16 bg-whatsapp-panel px-4 flex items-center space-x-3 border-b border-whatsapp-panel">
-            <div className="w-10 h-10 rounded-full bg-whatsapp-green flex items-center justify-center text-white font-bold text-sm">
+        <div className="w-full md:w-2/3 h-2/3 md:h-full flex flex-col bg-whatsapp-bg relative" onClick={() => setActiveMenuId(null)}>
+          <div className="h-16 bg-whatsapp-panel px-4 flex items-center space-x-3 border-b border-whatsapp-panel shrink-0">
+            <div className="w-10 h-10 rounded-full bg-whatsapp-green flex items-center justify-center text-white font-bold text-sm shrink-0">
               #
             </div>
             <div>
@@ -260,7 +260,7 @@ export default function App() {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 p-6 overflow-y-auto space-y-3 bg-[radial-gradient(#202c33_1px,transparent_1px)] [background-size:16px_16px]">
+          <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-3 bg-[radial-gradient(#202c33_1px,transparent_1px)] [background-size:16px_16px]">
             {messages.map((msg, index) => {
               const isMine = msg.sender === username;
               const uniqueMsgId = msg.id || `legacy-${index}`;
@@ -274,7 +274,7 @@ export default function App() {
                       e.stopPropagation();
                       setActiveMenuId((prev) => (prev === uniqueMsgId ? null : uniqueMsgId));
                     }}
-                    className={`relative max-w-[70%] px-3 py-1.5 rounded-lg text-sm shadow-sm transition-all ${
+                    className={`relative max-w-[85%] md:max-w-[70%] px-3 py-1.5 rounded-lg text-sm shadow-sm transition-all ${
                       isMine ? 'bg-whatsapp-bubble text-gray-100 cursor-pointer' : 'bg-whatsapp-panel text-gray-100'
                     }`}
                   >
@@ -320,14 +320,14 @@ export default function App() {
 
           {/* Editing Mode Banner */}
           {editingId && (
-            <div className="bg-whatsapp-input px-4 py-1.5 flex items-center justify-between border-t border-gray-700/50 text-xs text-whatsapp-green">
+            <div className="bg-whatsapp-input px-4 py-1.5 flex items-center justify-between border-t border-gray-700/50 text-xs text-whatsapp-green shrink-0">
               <span>Editing message... Press Enter/Save to apply changes.</span>
               <button onClick={handleCancelEdit} className="text-gray-400 hover:text-white font-bold">✕ Cancel</button>
             </div>
           )}
 
           {/* Input Bar */}
-          <form onSubmit={handleSendMessage} className="h-16 bg-whatsapp-panel px-4 flex items-center space-x-3 border-t border-whatsapp-panel">
+          <form onSubmit={handleSendMessage} className="h-16 bg-whatsapp-panel px-4 flex items-center space-x-3 border-t border-whatsapp-panel shrink-0">
             <input
               type="text"
               placeholder={editingId ? "Edit your message..." : "Type a message"}
@@ -335,7 +335,7 @@ export default function App() {
               onChange={handleInputChange}
               className="flex-1 bg-whatsapp-input text-gray-200 text-sm px-4 py-2.5 rounded-lg focus:outline-none border border-transparent focus:border-whatsapp-green transition"
             />
-            <button type="submit" className="p-2.5 bg-whatsapp-green hover:opacity-90 text-white rounded-lg transition active:scale-95">
+            <button type="submit" className="p-2.5 bg-whatsapp-green hover:opacity-90 text-white rounded-lg transition active:scale-95 shrink-0">
               {editingId ? (
                 <span className="font-bold text-xs px-1">Save</span>
               ) : (
