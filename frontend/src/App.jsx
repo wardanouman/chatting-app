@@ -11,8 +11,6 @@ const CHAT_ROOMS = [
 
 export default function App() {
   const [username, setUsername] = useState(() => sessionStorage.getItem('chat_username') || '');
-  const [password, setPassword] = useState('');
-  const [token, setToken] = useState(() => sessionStorage.getItem('chat_token') || '');
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(sessionStorage.getItem('chat_token')));
   const [loginError, setLoginError] = useState('');
   
@@ -36,10 +34,13 @@ export default function App() {
   }, [messages, typingUser]);
 
   useEffect(() => {
-    if (!isLoggedIn || !token) return;
+    if (!isLoggedIn) return;
 
     const joinCurrentRoom = () => {
-      socket.emit("join", { roomId: activeRoom.id, token });
+      const savedToken = sessionStorage.getItem('chat_token');
+      if (savedToken) {
+        socket.emit("join", { roomId: activeRoom.id, token: savedToken });
+      }
     };
 
     if (socket.connected) {
@@ -76,23 +77,21 @@ export default function App() {
       socket.off("user_typing");
       socket.off("auth_error");
     };
-  }, [isLoggedIn, activeRoom.id, token, username]);
+  }, [isLoggedIn, activeRoom.id, username]);
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) return;
+    if (!username.trim()) return;
 
     setLoginError('');
 
-    socket.emit("verify_login", { username: username.trim(), password }, (response) => {
+    socket.emit("verify_login", { username: username.trim() }, (response) => {
       if (response.success) {
         sessionStorage.setItem('chat_username', response.username);
         sessionStorage.setItem('chat_token', response.token);
 
         setUsername(response.username);
-        setToken(response.token);
         setIsLoggedIn(true);
-        setPassword('');
       } else {
         setLoginError(response.error || "Authentication failed");
       }
@@ -106,8 +105,6 @@ export default function App() {
     socket.emit("leave", activeRoom.id);
     setIsLoggedIn(false);
     setUsername('');
-    setPassword('');
-    setToken('');
     setMessages([]);
     setLoginError('');
   };
@@ -119,7 +116,9 @@ export default function App() {
     setTypingUser('');
     setActiveMenuId(null);
     setEditingId(null);
-    socket.emit("join", { roomId: room.id, token });
+
+    const savedToken = sessionStorage.getItem('chat_token');
+    socket.emit("join", { roomId: room.id, token: savedToken });
   };
 
   const handleInputChange = (e) => {
@@ -134,7 +133,6 @@ export default function App() {
     if (!message.trim()) return;
 
     if (editingId) {
-      // Edit Existing Message
       socket.emit("edit_message", {
         room: activeRoom.id,
         id: editingId,
@@ -143,7 +141,6 @@ export default function App() {
       setEditingId(null);
       setMessage('');
     } else {
-      // Send New Message
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       socket.emit("send", { room: activeRoom.id, message: message.trim(), time });
       setMessage('');
@@ -180,7 +177,7 @@ export default function App() {
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-gray-100">Welcome to WhatsApp</h2>
-            <p className="text-xs text-gray-400 mt-1">Enter your credentials to log in</p>
+            <p className="text-xs text-gray-400 mt-1">Enter a username to start chatting</p>
           </div>
 
           <div className="space-y-4">
@@ -200,21 +197,11 @@ export default function App() {
                 className="w-full px-4 py-2.5 rounded-lg bg-whatsapp-input text-white border border-transparent focus:border-whatsapp-green focus:outline-none transition"
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Password</label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-whatsapp-input text-white border border-transparent focus:border-whatsapp-green focus:outline-none transition"
-              />
-            </div>
             <button
               type="submit"
               className="w-full py-3 mt-2 bg-whatsapp-green hover:opacity-90 text-white font-semibold rounded-lg shadow-md transition duration-200 active:scale-[0.98]"
             >
-              Log In / Join Chat
+              Join Chat
             </button>
           </div>
         </form>

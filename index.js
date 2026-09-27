@@ -3,6 +3,9 @@ import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -10,17 +13,14 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Adjust for production if needed
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
 
-// --- CONFIGURATION ---
-const APP_PASSWORD = "your_shared_password_here"; // Set your single global password
-const JWT_SECRET = "your_super_secret_jwt_key_change_this"; // Secret key for signing tokens
+const JWT_SECRET = process.env.JWT_SECRET || "musahousejsonwebtoken123456789noshahistreet";
 
-// In-memory data store
-const activeUsers = new Map(); // Stores { username: socket.id }
+const activeUsers = new Map();
 const roomMessages = {
   general: [],
   tech: [],
@@ -31,50 +31,39 @@ io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
 
   // 1. VERIFY LOGIN & ISSUE JWT TOKEN
-  socket.on("verify_login", ({ username, password }, callback) => {
+  socket.on("verify_login", ({ username }, callback) => {
     const trimmedUser = username ? username.trim() : "";
 
-    if (!trimmedUser || !password) {
-      return callback({ success: false, error: "Username and password are required" });
+    if (!trimmedUser) {
+      return callback({ success: false, error: "Username is required" });
     }
 
-    // Check shared app password
-    if (password !== APP_PASSWORD) {
-      return callback({ success: false, error: "Invalid password" });
-    }
-
-    // Check if username is already taken by an active session
     if (activeUsers.has(trimmedUser)) {
       return callback({ success: false, error: "Username is already in use" });
     }
 
-    // Generate JWT token valid for 24 hours
     const token = jwt.sign({ username: trimmedUser }, JWT_SECRET, { expiresIn: "24h" });
 
-    // Track user session
     activeUsers.set(trimmedUser, socket.id);
     socket.username = trimmedUser;
 
     callback({ success: true, token, username: trimmedUser });
   });
 
-  // 2. JOIN ROOM (REQUIRES VALID JWT TOKEN)
+  // 2. JOIN ROOM
   socket.on("join", ({ roomId, token }) => {
     try {
       if (!token) throw new Error("No token provided");
       
-      // Verify JWT token
       const decoded = jwt.verify(token, JWT_SECRET);
       socket.username = decoded.username;
 
-      // Re-register active user on reconnect if missing
       if (!activeUsers.has(socket.username)) {
         activeUsers.set(socket.username, socket.id);
       }
 
       socket.join(roomId);
 
-      // Send existing message history for the room
       const history = roomMessages[roomId] || [];
       socket.emit("load_history", history);
 
@@ -85,13 +74,15 @@ io.on("connection", (socket) => {
 
   // 3. SEND MESSAGE
   socket.on("send", ({ room, message, time }) => {
-    if (!socket.username || !message.trim()) return;
+    if (!message || !message.trim()) return;
+
+    const senderName = socket.username || "Anonymous";
 
     const newMessage = {
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       room,
-      message,
-      sender: socket.username,
+      message: message.trim(),
+      sender: senderName,
       time,
       isEdited: false,
     };
@@ -99,7 +90,6 @@ io.on("connection", (socket) => {
     if (!roomMessages[room]) roomMessages[room] = [];
     roomMessages[room].push(newMessage);
 
-    // Keep history manageable (last 100 messages)
     if (roomMessages[room].length > 100) {
       roomMessages[room].shift();
     }
@@ -122,7 +112,6 @@ io.on("connection", (socket) => {
       msg.message = newText;
       msg.isEdited = true;
 
-      // Broadcast re-loaded history to sync edits across clients
       io.to(room).emit("load_history", roomMessages[room]);
     }
   });
@@ -135,7 +124,6 @@ io.on("connection", (socket) => {
     if (index !== -1 && roomMessages[room][index].sender === socket.username) {
       roomMessages[room].splice(index, 1);
 
-      // Broadcast updated history to sync deletions
       io.to(room).emit("load_history", roomMessages[room]);
     }
   });
